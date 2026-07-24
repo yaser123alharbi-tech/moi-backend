@@ -249,11 +249,29 @@ footer.attribution{text-align:center; color:var(--text-faint); font-size:11px; p
 
 <script>
 /* =========================================================================
-   DATA LAYER — persisted via window.storage (shared = whole-org database)
+   DATA LAYER — browser storage with artifact compatibility
    ========================================================================= */
 const DB_KEY = 'moi-core-data';
 const LOG_KEY = 'moi-audit-logs';
 const SESSION_KEY = 'moi-session';
+
+if (!window.storage) {
+  const storagePrefix = 'cyber-city-moi:';
+  window.storage = {
+    async get(key){
+      const value = localStorage.getItem(storagePrefix + key);
+      if (value === null) throw new Error('Storage key not found');
+      return { value };
+    },
+    async set(key, value){
+      localStorage.setItem(storagePrefix + key, value);
+      return { value };
+    },
+    async delete(key){
+      localStorage.removeItem(storagePrefix + key);
+    }
+  };
+}
 
 let DB = null;
 let LOGS = [];
