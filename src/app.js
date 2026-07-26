@@ -5,9 +5,17 @@ const cors = require('cors');
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+
 app.use(cors({
-  origin: allowedOrigins.length ? allowedOrigins : true,
-  credentials: true,
+  origin: function (origin, callback) {
+    // السماح بالطلبات التي لا تحتوي على origin (مثل Postman) أو إذا كانت القيمة '*'
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // يسمح لأي رابط محلي أو خارجي أثناء التطوير
+    }
+  },
+  credentials: true
 }));
 app.use(express.json());
 
