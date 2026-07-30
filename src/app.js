@@ -11,6 +11,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
+app.get('/', (req, res) => res.json({ ok: true, service: 'moi-backend', apiBase: '/api' }));
+app.get('/api', (req, res) => res.json({ ok: true, service: 'moi-backend', health: '/api/health' }));
 app.get('/health', (req, res) => res.json({ ok: true, service: 'moi-backend' }));
 
 app.use('/api/public', require('./routes/public'));

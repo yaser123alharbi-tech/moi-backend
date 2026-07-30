@@ -283,9 +283,29 @@ footer.attribution{text-align:center; color:var(--text-faint); font-size:11px; p
 /* =========================================================================
    API CLIENT
    ========================================================================= */
+const API_BASE_STORAGE_KEY = 'moi_api_base';
 const DEFAULT_API_BASE = 'https://moi-backend-ciq9.onrender.com/api';
-function getApiBase(){ return localStorage.getItem('https://moi-backend-ciq9.onrender.com/api') || DEFAULT_API_BASE; }
-function setApiBase(url){ localStorage.setItem('https://moi-backend-ciq9.onrender.com/api', url.replace(/\/+$/,'')); }
+function normalizeApiBase(url){
+  if(!url) return '';
+  let normalized = url.trim();
+  normalized = normalized.replace(/\/+$/, '');
+  if(!/^https?:\/\//i.test(normalized)) normalized = 'https://' + normalized;
+  if(!normalized.endsWith('/api')) normalized += '/api';
+  return normalized;
+}
+function getApiBase(){
+  const saved = localStorage.getItem(API_BASE_STORAGE_KEY);
+  if(saved) return saved;
+  const legacy = localStorage.getItem(DEFAULT_API_BASE);
+  if(legacy){
+    const normalized = normalizeApiBase(legacy);
+    localStorage.setItem(API_BASE_STORAGE_KEY, normalized);
+    localStorage.removeItem(DEFAULT_API_BASE);
+    return normalized;
+  }
+  return DEFAULT_API_BASE;
+}
+function setApiBase(url){ localStorage.setItem(API_BASE_STORAGE_KEY, normalizeApiBase(url)); }
 function getToken(){ return localStorage.getItem('moi_token'); }
 function setToken(tok){ if(tok) localStorage.setItem('moi_token', tok); else localStorage.removeItem('moi_token'); }
 
