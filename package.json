@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "migrate": "node src/migrate.js"
+    "migrate": "node src/migrate.js",
+    "import:roster": "node src/import_lspd.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

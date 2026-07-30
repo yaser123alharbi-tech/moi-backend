@@ -5,22 +5,15 @@ const cors = require('cors');
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // السماح بالطلبات التي لا تحتوي على origin (مثل Postman) أو إذا كانت القيمة '*'
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, true); // يسمح لأي رابط محلي أو خارجي أثناء التطوير
-    }
-  },
-  credentials: true
+  origin: allowedOrigins.length ? allowedOrigins : true,
+  credentials: true,
 }));
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'moi-backend' }));
 
+app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/units', require('./routes/units'));
@@ -29,6 +22,8 @@ app.use('/api/leaves', require('./routes/leaves'));
 app.use('/api/resignations', require('./routes/resignations'));
 app.use('/api/circulars', require('./routes/circulars'));
 app.use('/api/logs', require('./routes/logs'));
+app.use('/api/stats', require('./routes/stats'));
+
 
 // Basic error handler — never leak stack traces to clients
 app.use((err, req, res, next) => {

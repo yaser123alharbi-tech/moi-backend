@@ -37,18 +37,34 @@ Generate a strong `JWT_SECRET` with:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-## 3. Install, migrate, seed
+## 3. Install, migrate, import your real roster
 
 ```bash
 npm install
-npm run migrate   # creates all tables from sql/schema.sql
-node src/seed.js  # creates demo accounts + starter units/badges
+npm run migrate          # creates all tables (schema + LSPD field additions)
+npm run import:roster    # imports your real 65-person roster + vacant slots from data/lspd_roster.json
+node src/seed_badges.js  # creates the starter set of wings/badges
 ```
 
-The seed script prints the demo logins (same accounts as the frontend demo panel):
-`admin/admin123`, `highcmd/highcmd123`, `hr/hr123`, `recruiter/rec123`,
-`badges/badge123`, `commander/cmd123`, `soldier/sol123`.
-**Change these passwords (or delete the seeded users) before going live.**
+`import:roster` is safe to re-run — it skips any badge number already in the database,
+so running it twice won't duplicate people or reset passwords.
+
+It prints (and saves to `data/issued_credentials.csv`) a **private** username/password
+for every real person on the roster — username = their badge number (e.g. `a2`, `c9`, `t0`),
+password = randomly generated. **This file contains real login credentials — never commit
+it to a public repo or expose it on the website.** Distribute each person's line to them
+individually (Discord DM, etc.) and encourage them to change their password once you build
+a "change password" feature, or rotate it yourself via the `provision-access` endpoint.
+
+Vacant badge slots (no name in your schedule) are imported too, so the roster numbers
+match your real org chart — they show up as "Vacant" and have no login until an
+HR/High Command user fills the seat via **Provision Login Access** in the UI.
+
+Roles were auto-assigned from the admin titles in your sheet (Chief of Police / Assistant
+Chief → High Command, Head of Internal Affairs → HR, Deputy Police Academy → Recruiter,
+Commander badges → Unit Commander). Everyone else starts as a regular Soldier — High
+Command can promote anyone's system role afterward from their profile page
+("Assign System Role").
 
 ## 4. Run it
 
@@ -60,9 +76,10 @@ npm start
 Test it:
 ```bash
 curl http://localhost:4000/health
+curl http://localhost:4000/api/public/roster   # public — no auth needed
 curl -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"hr","password":"hr123"}'
+  -d '{"username":"<a badge-based username from issued_credentials.csv>","password":"<its password>"}'
 ```
 
 ## 5. Deploy it somewhere permanent
@@ -77,39 +94,37 @@ Whatever you choose, you'll end up with a public URL like `https://api.your-doma
 
 ## 6. Point the frontend at it
 
-In `ministry_of_interior.html`, the frontend currently talks to `window.storage`
-(the browser-based demo database). To use this real backend instead, replace the
-data-layer functions with `fetch()` calls to this API. The mapping is direct:
+`moi-frontend/index.html` (shipped alongside this backend) is **already fully wired**
+to call this API — no manual mapping needed. It uses real `fetch()` calls with a
+`Bearer` token, has a public/guest read-only mode, and every management action
+(hire, edit, promote, penalize, transfer, terminate, award badge, assign system
+role, provision login access, leaves, resignations, circulars) calls a real endpoint
+below.
 
-| Frontend function          | API call                                      |
-|-----------------------------|------------------------------------------------|
-| `doLogin(username, password)` | `POST /api/auth/login` → store the returned `token` |
-| `loadDB()`                  | `GET /api/users`, `GET /api/units`, `GET /api/badges`, `GET /api/circulars`, `GET /api/leaves`, `GET /api/resignations` |
-| Add member                  | `POST /api/users` |
-| Promote                     | `POST /api/users/:id/promote` |
-| Add penalty                 | `POST /api/users/:id/penalty` |
-| Transfer unit                | `POST /api/users/:id/transfer` |
-| Terminate                   | `POST /api/users/:id/terminate` |
-| Award badge                 | `POST /api/badges/:id/award` |
-| Submit leave                | `POST /api/leaves` |
-| Approve/reject leave        | `POST /api/leaves/:id/review` with `{status:"approved"}` |
-| Submit resignation           | `POST /api/resignations` |
-| Approve/reject/suspend resignation | `POST /api/resignations/:id/review` |
-| New circular                 | `POST /api/circulars` |
-| Audit logs (developer only)   | `GET /api/logs`, `GET /api/logs/export.csv` |
+**Set the API URL:** open the site, and on first load it'll ask for your backend's
+base URL (e.g. `https://api.your-domain.com/api`) — it's saved in the browser so you
+only enter it once per device. You can change it later from the login screen.
 
-Every authenticated request needs the header:
-```
-Authorization: Bearer <token from login>
-```
+Full endpoint reference:
 
-Store the token in memory or `sessionStorage` in your own hosting environment
-(not inside a Claude artifact, since artifacts can't use browser storage APIs —
-that limitation goes away once this is deployed as your own website).
+| Action                        | Endpoint                                       | Who can call it |
+|-------------------------------|-------------------------------------------------|------------------|
+| Public roster / units / circulars (no login) | `GET /api/public/roster`, `/api/public/units`, `/api/public/circulars` | anyone |
+| Login                          | `POST /api/auth/login`                          | anyone |
+| List/view personnel (full detail) | `GET /api/users`, `GET /api/users/:id`       | any logged-in user |
+| Add member                     | `POST /api/users`                               | recruiter, hr, high_command |
+| Edit official record (name/rank/unit/badge #) | `PATCH /api/users/:id`           | recruiter, hr, high_command, unit_commander (own unit only) |
+| Edit own contact info (Discord/Steam/FiveM)   | `PATCH /api/users/:id/contact`   | the user themself, only |
+| Assign system role              | `PATCH /api/users/:id/role`                    | high_command, developer |
+| Provision login for a vacant slot | `POST /api/users/:id/provision-access`       | hr, high_command |
+| Promote / penalty / transfer / terminate | `POST /api/users/:id/{promote,penalty,transfer,terminate}` | hr, high_command (+ unit_commander for promote/penalty) |
+| Award badge                     | `POST /api/badges/:id/award`                   | badges_admin, high_command |
+| Submit leave / resignation      | `POST /api/leaves`, `POST /api/resignations`   | any logged-in user |
+| Approve/reject leave / resignation | `POST /api/leaves/:id/review`, `/api/resignations/:id/review` | hr, high_command (+ unit_commander scoped for leaves) |
+| New circular                    | `POST /api/circulars`                          | hr, high_command, unit_commander |
+| Audit logs                      | `GET /api/logs`, `GET /api/logs/export.csv`    | developer only |
+| Dashboard stats                 | `GET /api/stats`                               | any logged-in user |
 
-If you'd like, send me the word "connect" and tell me where you're hosting
-(Supabase, Railway, your own server, etc.) and I'll rewrite the frontend's data
-layer to call this API directly instead of `window.storage`, fully wired up.
 
 ## Project structure
 

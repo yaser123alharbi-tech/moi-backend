@@ -14,9 +14,11 @@ router.post('/login', async (req, res) => {
   const { rows } = await pool.query(`SELECT * FROM users WHERE username = $1`, [username]);
   const user = rows[0];
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (user.has_login === false) return res.status(403).json({ error: 'No account has been provisioned for this record yet' });
 
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  if (user.status === 'terminated') return res.status(403).json({ error: 'Account deactivated' });
 
   const token = jwt.sign(
     { id: user.id, role: user.role, fullName: user.full_name, rank: user.rank_en },
